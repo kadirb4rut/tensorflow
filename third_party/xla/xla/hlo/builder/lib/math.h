@@ -84,7 +84,9 @@ XlaOp RoundToEven(XlaOp x);
 // Trigonometric functions
 
 // Computes the arc cosine of 'x'.
-XlaOp Acos(XlaOp x);
+XlaOp Acos(XlaOp x,
+           const std::optional<ResultAccuracy>& result_accuracy = std::nullopt,
+           bool expand = false);
 
 // Computes the arc sine of 'x'.
 XlaOp Asin(XlaOp x);
@@ -97,7 +99,7 @@ XlaOp Atan(XlaOp x);
 // Computes the inverse hyperbolic cosine of 'x'.
 XlaOp Acosh(XlaOp x,
             const std::optional<ResultAccuracy>& result_accuracy = std::nullopt,
-            bool expand = true);
+            bool expand = false);
 
 // Computes the inverse hyperbolic sine of 'x'.
 XlaOp Asinh(XlaOp x);
