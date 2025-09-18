@@ -22,6 +22,7 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -33,7 +34,9 @@ limitations under the License.
 #include "xla/backends/profiler/subprocess/subprocess_registry.h"
 #include "xla/tsl/platform/errors.h"
 #include "xla/tsl/platform/statusor.h"
+#include "xla/tsl/profiler/utils/timestamp_utils.h"
 #include "xla/tsl/profiler/utils/xplane_schema.h"
+#include "xla/tsl/profiler/utils/xplane_utils.h"
 #include "tsl/profiler/lib/profiler_collection.h"
 #include "tsl/profiler/lib/profiler_factory.h"
 #include "tsl/profiler/lib/profiler_interface.h"
@@ -124,6 +127,9 @@ absl::Status SubprocessProfilingSession::Stop() {
     return absl::FailedPreconditionError(
         "Subprocess profiling session not started.");
   }
+  // If there is an error, make sure to cancel the context to avoid
+  // heap-use-after-free inside the gRPC library.
+  absl::Cleanup cleanup = [&]() { context_.TryCancel(); };
   tensorflow::TerminateRequest terminate_request;
   terminate_request.set_session_id(request_.session_id());
   tensorflow::TerminateResponse terminate_response;
@@ -159,6 +165,14 @@ absl::Status SubprocessProfilingSession::CollectData(
     space->add_warnings(
         absl::StrCat("No XSpace data returned from subprocess: ",
                      subprocess_info_.DebugString()));
+  }
+  if (auto timestamps = tsl::profiler::GetSessionTimestamps(response_.xspace());
+      timestamps.has_value()) {
+    tsl::profiler::DenormalizeTimestamps(response_.mutable_xspace(),
+                                         timestamps->first);
+  } else {
+    LOG(WARNING) << "No session timestamps found. Skipping denormalizing "
+                    "timestamps.";
   }
   for (const auto& plane : response_.xspace().planes()) {
     // TODO(b/416884677): Implement merging task env planes from subprocesses to
